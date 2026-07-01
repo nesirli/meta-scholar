@@ -82,6 +82,9 @@ dmypy.json
 .idea/
 .vscode/
 
+# Fetched/generated corpus data
+data/
+
 # === macOS ===
 .DS_Store
 .AppleDouble

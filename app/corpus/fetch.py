@@ -1,5 +1,8 @@
 import httpx
 import xml.etree.ElementTree as ET
+import time
+import json
+from pathlib import Path
 
 EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
@@ -37,7 +40,15 @@ def fetch_records(pmids: list[str]) -> str:
 def _parse_article(article: ET.Element) -> dict | None:
     pmid = article.findtext(".//PMID")
     title = article.findtext(".//ArticleTitle")
-    abstract = article.findtext(".//AbstractText")
+    sections = article.findall(".//AbstractText")
+    parts = []
+    for sec in sections:
+        label = sec.get("Label")
+        text = (sec.text or "").strip()
+        if not text:
+            continue
+        parts.append(f"{label}: {text}" if label else text)
+    abstract = " ".join(parts)
     year = article.findtext(".//PubDate/Year")
     journal = article.findtext(".//Journal/Title")
 
@@ -60,3 +71,22 @@ def parse_records(xml_text: str) -> list[dict]:
         if parsed is not None:
             records.append(parsed)
     return records
+
+def fetch_all(pmids: list[str], batch_size: int = 100, delay: float = 0.4) -> list[dict]:
+    records = []
+    for i in range(0, len(pmids), batch_size):
+        batch = pmids[i:i + batch_size]
+        records.extend(parse_records(fetch_records(batch)))
+        time.sleep(delay)
+    return records
+
+def write_jsonl(records: list[dict], path: Path) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    seen = set()
+    with path.open("w", encoding="utf-8") as f:
+        for r in records:
+            if r["pmid"] in seen:
+                continue
+            seen.add(r["pmid"])
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    return len(seen)
