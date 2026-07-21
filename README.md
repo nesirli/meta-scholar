@@ -2,7 +2,7 @@
 
 > RAG-based question answering over the metagenomics & microbiome literature — ask a question, get an answer grounded in PubMed abstracts, with citations.
 
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Status](https://img.shields.io/badge/status-in%20development-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -32,6 +32,7 @@ Most RAG demos are built by web developers who can't evaluate whether the answer
 |---|---|---|
 | API & serving | FastAPI (async) | ✅ in place |
 | Dependency management | uv | ✅ in place |
+| Corpus | PubMed E-utilities (`httpx`) → JSONL | ✅ in place |
 | LLM & embeddings | OpenAI API | ⏳ planned (M2) |
 | Vector store | PostgreSQL + pgvector | ⏳ planned (M4) |
 | Retrieval quality | hybrid search + reranking | ⏳ planned (M5) |
@@ -57,9 +58,9 @@ Most RAG demos are built by web developers who can't evaluate whether the answer
 
 Built tracer-bullet style: a crude end-to-end pipeline first (M3), then each layer upgraded in place.
 
-- [ ] **M0** — Project skeleton: uv, FastAPI app that runs *(in progress)*
-- [ ] **M1** — Corpus: fetch & parse PubMed abstracts → JSONL
-- [ ] **M2** — First LLM call: provider-agnostic OpenAI client, structured output
+- [x] **M0** — Project skeleton: uv, FastAPI app that runs
+- [x] **M1** — Corpus: fetch & parse PubMed abstracts → JSONL (288 records via NCBI E-utilities, deduped, unit-tested)
+- [ ] **M2** — First LLM call: provider-agnostic OpenAI client, structured output *(in progress)*
 - [ ] **M3** — 🎯 Tracer bullet: crude end-to-end RAG (embeddings + cosine similarity in NumPy)
 - [ ] **M4** — Real retrieval: pgvector + chunking
 - [ ] **M5** — Better retrieval: hybrid search + reranking
@@ -73,7 +74,7 @@ Built tracer-bullet style: a crude end-to-end pipeline first (M3), then each lay
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - Docker (needed from M4 onward, for Postgres + pgvector)
 
@@ -82,7 +83,8 @@ Built tracer-bullet style: a crude end-to-end pipeline first (M3), then each lay
 ```bash
 git clone https://github.com/nesirli/metascholar.git metascholar
 cd metascholar
-uv sync          # installs dependencies into .venv from uv.lock
+uv sync                        # installs dependencies into .venv from uv.lock
+cp .env.example .env           # then fill in OPENAI_API_KEY
 ```
 
 ### Running the API
@@ -91,25 +93,44 @@ uv sync          # installs dependencies into .venv from uv.lock
 uv run uvicorn app.main:app --reload
 ```
 
-Then open http://127.0.0.1:8000/docs for the interactive Swagger UI.
+Then open http://127.0.0.1:8000/docs for the interactive Swagger UI, or check `GET /health`.
 
-> Note: the runnable API lands at the end of M0. Until then, this command is part of what's being built.
+### Fetching the corpus
+
+```bash
+uv run python scripts/fetch_corpus.py
+```
+
+Queries NCBI E-utilities for metagenomics/microbiome abstracts, parses the PubMed XML (concatenating labeled abstract sections), dedupes by PMID, and writes `data/corpus.jsonl` (gitignored — regenerate locally rather than committing it).
+
+### Running tests
+
+```bash
+uv run pytest
+```
 
 ## Project structure
 
 ```
 metascholar/
-├── pyproject.toml      # uv-managed dependencies
-├── .env / .env.example # secrets + committed template
+├── pyproject.toml       # uv-managed dependencies
+├── .env / .env.example  # secrets + committed template
 ├── .gitignore
 ├── README.md
-└── app/
-    ├── __init__.py
-    ├── config.py       # settings (pydantic-settings)
-    └── main.py         # FastAPI entrypoint
+├── app/
+│   ├── __init__.py
+│   ├── config.py        # settings (pydantic-settings)
+│   ├── main.py          # FastAPI entrypoint
+│   └── corpus/
+│       └── fetch.py     # NCBI E-utilities search/fetch/parse → JSONL
+├── scripts/
+│   └── fetch_corpus.py  # CLI entrypoint for the corpus fetch
+├── tests/
+│   └── test_parse.py
+└── data/                # generated corpus (gitignored)
 ```
 
-Folders for `corpus/`, `retrieval/`, `rag/`, and `api/` are added at the milestones that introduce them — not before.
+Folders for `retrieval/`, `rag/`, and `api/` are added at the milestones that introduce them — not before.
 
 ## License
 
