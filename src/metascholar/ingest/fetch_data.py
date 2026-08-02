@@ -4,14 +4,14 @@ import time
 import json
 from pathlib import Path
 
+from metascholar.config import settings
+
 EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
 SEARCH_QUERY = (
     "metagenomics AND (microbiome OR microbial community) "
     "AND (bioinformatics OR pipeline OR analysis)"
 )
-
-OUT_PATH = Path("data/corpus.jsonl")
 
 
 def _retry(func, *args, max_retries=3, **kwargs):
@@ -49,7 +49,7 @@ def _parse_article(article: ET.Element) -> dict | None:
     abstract_parts = []
     for sec in article.findall(".//AbstractText"):
         label = sec.get("Label")
-        text = (sec.text or "").strip()
+        text = "".join(sec.itertext()).strip()
         if text:
             abstract_parts.append(f"{label}: {text}" if label else text)
     abstract = " ".join(abstract_parts)
@@ -75,7 +75,9 @@ def parse_records(xml_text: str) -> list[dict]:
     return records
 
 
-def fetch_all(pmids: list[str], batch_size: int = 100, delay: float = 0.4) -> list[dict]:
+def fetch_all(
+    pmids: list[str], batch_size: int = 100, delay: float = 0.4
+) -> list[dict]:
     """Fetch and parse all PMIDs in batches, respecting NCBI rate limits."""
     records = []
     for i in range(0, len(pmids), batch_size):
@@ -99,12 +101,14 @@ def write_jsonl(records: list[dict], path: Path) -> int:
 
 
 def main() -> None:
-    """Search PubMed, fetch full records, and write them to OUT_PATH."""
+    """Search PubMed, fetch full records, and write them to corpus."""
     pmids = search_pmids(SEARCH_QUERY, retmax=300)
     print(f"found {len(pmids)} PMIDs, fetching…")
     records = fetch_all(pmids)
-    written = write_jsonl(records, OUT_PATH)
-    print(f"parsed {len(records)} records, wrote {written} unique → {OUT_PATH}")
+    written = write_jsonl(records, settings.corpus_path)
+    print(
+        f"parsed {len(records)} records, wrote {written} unique → {settings.corpus_path}"
+    )
 
 
 if __name__ == "__main__":
