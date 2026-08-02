@@ -7,5 +7,8 @@ init:
 test_rag:
 	uv run python -m metascholar.rag.rag_test
 
+evaluate:
+	uv run python -m metascholar.rag.evaluate
+
 run_app:
 	uv run streamlit run src/metascholar/app/app.py
