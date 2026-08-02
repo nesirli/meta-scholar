@@ -1,7 +1,13 @@
 import streamlit as st
+st.set_page_config(page_title="MetaScholar", page_icon="🦠")
+
 from metascholar.config import settings
 
 from metascholar.rag.rag_init import assistant
+from metascholar.rag.judge import evaluate_relevance
+from metascholar.app.dashboard import show_dashboard
+from metascholar.app.db_query import save_llm_call
+from metascholar.app.db_feedback import save_feedback
 
 
 def check_auth():
@@ -25,18 +31,9 @@ def check_auth():
     return False
 
 
-if check_auth():
-    _, _, right = st.columns([4, 1, 1])
-    right.button("Logout", on_click=lambda: st.session_state.update(authenticated=False))
-
-    st.set_page_config(
-        page_title="MetaScholar",
-        page_icon="🦠"
-    )
+def show_chat():
     st.title("MetaScholar")
-    st.markdown("""
-    RAG-based question answering app over the metagenomics literature
-    """)
+    st.markdown("RAG-based question answering over the metagenomics literature")
 
     query = st.text_input("Enter your question:")
 
@@ -49,8 +46,15 @@ if check_auth():
     if st.button("Ask"):
         with st.spinner("Processing..."):
             result = assistant.query(query)
+            conversation_id = save_llm_call(result)
+            st.session_state.conversation_id = conversation_id
             st.success("Completed!")
             st.write(result.answer)
+
+            with st.spinner("Evaluating relevance..."):
+                relevance, explanation = evaluate_relevance(query, result.answer)
+                save_feedback(conversation_id, "judge", relevance=relevance, explanation=explanation)
+
             if result.sources:
                 st.divider()
                 st.caption("References")
@@ -60,3 +64,27 @@ if check_auth():
                         f"({src.get('year', '?')}, {src.get('journal', '?')}) — "
                         f"PMID {src['pmid']}"
                     )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("👍 Helpful"):
+                    save_feedback(st.session_state.conversation_id, "user", score=1)
+                    st.success("Thanks!")
+            with col2:
+                if st.button("👎 Not helpful"):
+                    save_feedback(st.session_state.conversation_id, "user", score=-1)
+                    st.success("Thanks for the feedback!")
+
+
+if check_auth():
+    with st.sidebar:
+        if st.button("Logout"):
+            st.session_state.authenticated = False
+            st.rerun()
+
+    chat_tab, dash_tab = st.tabs(["Chat", "Dashboard"])
+
+    with chat_tab:
+        show_chat()
+    with dash_tab:
+        show_dashboard()
