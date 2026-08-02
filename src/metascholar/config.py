@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     postgres_db: str
     postgres_user: str
     postgres_password: str
+    app_username: str
+    app_password: str
 
 
 @lru_cache
