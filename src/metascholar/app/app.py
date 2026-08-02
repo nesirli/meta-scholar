@@ -1,3 +1,4 @@
+# ruff: noqa: E402  # st.set_page_config must be first Streamlit command
 import streamlit as st
 st.set_page_config(page_title="MetaScholar", page_icon="🦠")
 
