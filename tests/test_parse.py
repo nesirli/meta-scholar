@@ -1,4 +1,4 @@
-from app.corpus.fetch import parse_records
+from metascholar.ingest.fetch_data import parse_records
 
 MULTI_SECTION_XML = """<PubmedArticleSet><PubmedArticle><MedlineCitation>
 <PMID Version="1">12345678</PMID>
