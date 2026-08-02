@@ -113,6 +113,7 @@ class RAG:
             context = self.build_context(results)
         prompt = self.build_prompt(question, context)
         record = self.llm(prompt)
+        record.question = question
         record.sources = results
         return record
 
