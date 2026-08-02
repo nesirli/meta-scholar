@@ -2,9 +2,45 @@
 
 import psycopg
 from dataclasses import dataclass
+from openai import OpenAI
 
 from metascholar.config import settings
 from metascholar.rag.schemas import LLMCallRecord
+
+_embed_client = None
+
+
+def _get_embed_client():
+    global _embed_client
+    if _embed_client is None:
+        _embed_client = OpenAI(api_key=settings.openai_api_key)
+    return _embed_client
+
+
+def embed_text(text: str, model: str = "text-embedding-3-small") -> list[float]:
+    """Generate an embedding vector for a text string."""
+    resp = _get_embed_client().embeddings.create(model=model, input=text)
+    return resp.data[0].embedding
+
+
+def pg_vector_search(query: str, top_k: int = 5) -> list[dict]:
+    """Search articles by vector similarity using pgvector cosine distance."""
+    emb = embed_text(query)
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            """SELECT pmid, title, abstract, year, journal,
+               1 - (embedding <=> %s::vector) AS similarity
+               FROM articles ORDER BY embedding <=> %s::vector LIMIT %s""",
+            (emb, emb, top_k),
+        ).fetchall()
+        return [
+            {"pmid": r[0], "title": r[1], "abstract": r[2],
+             "year": r[3], "journal": r[4], "similarity": float(r[5])}
+            for r in rows
+        ]
+    finally:
+        conn.close()
 
 
 def _get_conn():

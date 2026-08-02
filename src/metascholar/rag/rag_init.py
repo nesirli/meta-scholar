@@ -5,6 +5,7 @@ from openai import OpenAI
 
 from metascholar.rag.schemas import LLMCallRecord
 from metascholar.config import settings
+from metascholar.app.db_query import pg_vector_search
 
 INSTRUCTIONS = (
     "You are a research assistant answering questions about metagenomics literature. "
@@ -52,11 +53,11 @@ class RAG:
                 return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
         return 0.0
 
-    def search(self, query: str) -> list[dict]:
-        """Score records by how many query tokens appear in title + abstract"""
+    def search_keyword(self, query: str) -> list[dict]:
+        """Score records by how many query tokens appear in title + abstract."""
         _STOPWORDS = {
             "the", "a", "an", "is", "are", "was", "were", "in", "of",
-            "to", "for", "with", "on", "at", "by", "from","what", "how",
+            "to", "for", "with", "on", "at", "by", "from", "what", "how",
             "does", "study", "studies", "analysis", "using", "used", "based", "data",
         }
         tokens = set(query.lower().split()) - _STOPWORDS
@@ -68,6 +69,29 @@ class RAG:
                 scored.append((score, record))
         scored.sort(key=lambda x: x[0], reverse=True)
         return [r for _, r in scored[: self._top_k]]
+
+    def search_vector(self, query: str) -> list[dict]:
+        """Search via pgvector cosine similarity."""
+        return pg_vector_search(query, top_k=self._top_k)
+
+    def search_hybrid(self, query: str) -> list[dict]:
+        """Combine keyword and vector results with reciprocal rank fusion."""
+        k = 60
+        kw_results = self.search_keyword(query)
+        vec_results = self.search_vector(query)
+        scores: dict[str, float] = {}
+        seen: dict[str, dict] = {}
+        for rank, r in enumerate(kw_results):
+            scores[r["pmid"]] = scores.get(r["pmid"], 0) + 1 / (rank + k)
+            seen[r["pmid"]] = r
+        for rank, r in enumerate(vec_results):
+            scores[r["pmid"]] = scores.get(r["pmid"], 0) + 1 / (rank + k)
+            seen.setdefault(r["pmid"], r)
+        merged = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        return [seen[pmid] for pmid, _ in merged[: self._top_k]]
+
+    # Backward-compatible alias
+    search = search_keyword
 
     def build_context(self, results: list[dict]) -> str:
         parts = []
@@ -105,8 +129,13 @@ class RAG:
             ),
         )
 
-    def query(self, question: str) -> LLMCallRecord:
-        results = self.search(question)
+    def query(self, question: str, method: str = "hybrid") -> LLMCallRecord:
+        if method == "hybrid":
+            results = self.search_hybrid(question)
+        elif method == "vector":
+            results = self.search_vector(question)
+        else:
+            results = self.search_keyword(question)
         if not results:
             context = "(No relevant articles found.)"
         else:
