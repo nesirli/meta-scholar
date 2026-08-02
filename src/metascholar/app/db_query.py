@@ -1,3 +1,5 @@
+"""Database query functions for conversations, stats, and feedback."""
+
 import psycopg
 from dataclasses import dataclass
 
@@ -6,6 +8,7 @@ from metascholar.rag.schemas import LLMCallRecord
 
 
 def _get_conn():
+    """Create a new database connection using settings from config."""
     return psycopg.connect(
         host=settings.postgres_host,
         dbname=settings.postgres_db,
@@ -16,6 +19,7 @@ def _get_conn():
 
 @dataclass
 class ConversationRecord:
+    """A flattened row from the llm_calls table for dashboard display."""
     question: str
     prompt: str
     answer: str
@@ -27,6 +31,7 @@ class ConversationRecord:
 
 @dataclass
 class Stats:
+    """Aggregate stats across all llm_calls."""
     total: int
     avg_response_time: float
     total_cost: float
@@ -34,6 +39,8 @@ class Stats:
 
 
 def save_llm_call(record: LLMCallRecord) -> int:
+    """Persist an LLMCallRecord to llm_calls and its sources to llm_call_sources.
+    Returns the new call_id."""
     conn = _get_conn()
     try:
         row = conn.execute(
@@ -58,6 +65,7 @@ def save_llm_call(record: LLMCallRecord) -> int:
 
 
 def get_conversations(limit: int = 100) -> list[ConversationRecord]:
+    """Fetch recent conversations ordered by timestamp descending."""
     conn = _get_conn()
     try:
         rows = conn.execute(
@@ -71,6 +79,7 @@ def get_conversations(limit: int = 100) -> list[ConversationRecord]:
 
 
 def get_stats() -> Stats:
+    """Return aggregate usage stats from the llm_calls table."""
     conn = _get_conn()
     try:
         row = conn.execute(
@@ -84,11 +93,12 @@ def get_stats() -> Stats:
 
 
 def get_relevance_stats() -> dict[str, int]:
+    """Count feedback rows grouped by relevance verdict (judge evaluations)."""
     conn = _get_conn()
     try:
         rows = conn.execute(
             "SELECT coalesce(relevance, 'UNKNOWN'), count(*) "
-            "FROM feedback GROUP BY relevance"
+            "FROM feedback WHERE source = 'judge' GROUP BY relevance"
         ).fetchall()
         return {r[0]: r[1] for r in rows}
     finally:
@@ -96,12 +106,13 @@ def get_relevance_stats() -> dict[str, int]:
 
 
 def get_user_feedback_stats() -> tuple[int, int]:
+    """Return counts of positive (score=1) and negative (score=-1) user feedback."""
     conn = _get_conn()
     try:
         up, down = conn.execute(
-            "SELECT coalesce(sum(case when source='thumbs_up' then 1 else 0 end), 0), "
-            "coalesce(sum(case when source='thumbs_down' then 1 else 0 end), 0) "
-            "FROM feedback"
+            "SELECT coalesce(sum(case when score = 1 then 1 else 0 end), 0), "
+            "coalesce(sum(case when score = -1 then 1 else 0 end), 0) "
+            "FROM feedback WHERE source = 'user'"
         ).fetchone()
         return up, down
     finally:

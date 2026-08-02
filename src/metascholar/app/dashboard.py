@@ -1,3 +1,5 @@
+"""Dashboard tab: usage stats, charts, and recent conversation history."""
+
 from dataclasses import asdict
 
 import pandas as pd
