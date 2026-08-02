@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from openai import OpenAI
+from tqdm import tqdm
 
 from metascholar.config import settings
 
@@ -97,16 +98,16 @@ def init_db():
 
 
 def index_corpus(conn: psycopg.Connection, corpus_path: Path):
-    with corpus_path.open() as f:
-        for line in f:
-            r = json.loads(line)
-            emb = embed(r["abstract"])
-            conn.execute(
-                """INSERT INTO articles (pmid, title, abstract, year, journal, embedding)
-                   VALUES (%s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (pmid) DO NOTHING""",
-                (r["pmid"], r["title"], r["abstract"], r["year"], r["journal"], emb),
-            )
+    lines = corpus_path.read_text(encoding="utf-8").strip().splitlines()
+    for line in tqdm(lines, desc="Indexing", unit="article"):
+        r = json.loads(line)
+        emb = embed(r["abstract"])
+        conn.execute(
+            """INSERT INTO articles (pmid, title, abstract, year, journal, embedding)
+               VALUES (%s, %s, %s, %s, %s, %s)
+               ON CONFLICT (pmid) DO NOTHING""",
+            (r["pmid"], r["title"], r["abstract"], r["year"], r["journal"], emb),
+        )
     conn.commit()
 
 
