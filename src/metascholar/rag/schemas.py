@@ -1,6 +1,6 @@
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
+
 
 @dataclass
 class LLMCallRecord:
@@ -12,5 +12,5 @@ class LLMCallRecord:
     completion_tokens: int
     total_tokens: int
     response_time: float
-    cost: float
+    cost: float = 0.0
     timestamp: datetime = field(default_factory=datetime.now)

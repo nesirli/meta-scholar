@@ -1,60 +1,134 @@
+import json
+import time
+from pathlib import Path
 from openai import OpenAI
 
-from metascholar.config import settings
-from schemas import LLMCallRecord
+from metascholar.rag.schemas import LLMCallRecord
 
-client = OpenAI(api_key=settings.openai_api_key)
+INSTRUCTIONS = (
+    "You are a research assistant answering questions about metagenomics literature. "
+    "Use only the provided context to answer. If the answer is not in the context, "
+    'say "I don\'t know."'
+)
+
+PROMPT_TEMPLATE = """QUESTION: {question}
+
+CONTEXT:
+{context}""".strip()
+
 
 class RAG:
+    """Simple keyword-search RAG over a JSONL corpus of PubMed articles."""
 
-    llm_model = ''
-    last_call: LLMCallRecord = None
+    _PRICING = {
+        "gpt-4o-mini": (0.15, 0.60),
+        "gpt-4o": (2.50, 10.00),
+    }
+
+    def __init__(self, client: OpenAI, corpus_path: Path, top_k: int = 5):
+        self._client = client
+        self._top_k = top_k
+        self._records: list[dict] = self._load_corpus(corpus_path)
 
     @staticmethod
-    def calculate_cost(model, usage):
-        cost = 0
-        if "gpt-5.4-mini" in model:
-            cost = (usage.input_tokens * 0.15 + usage.output_tokens * 0.60) / 1_000_000
-        return cost
+    def _load_corpus(path: Path) -> list[dict]:
+        records = []
+        with path.open(encoding="utf8") as fp:
+            for line in fp:
+                line = line.strip()
+                if line:
+                    records.append(json.loads(line))
+        return records
 
-    def __init__(self):
-        pass
+    @classmethod
+    def _calculate_cost(
+        cls, model: str, input_tokens: int, output_tokens: int
+    ) -> float:
+        for key, (in_price, out_price) in cls._PRICING.items():
+            if key in model:
+                return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
+        return 0.0
 
-    def embed(text: str, model: str = "text-embedding-3-small") -> list[float]:
-        resp = client.embeddings.create(model=model, input=text)
-        return resp.data[0].embedding
+    def search(self, query: str) -> list[dict]:
+        """Score records by how many query tokens appear in title + abstract"""
+        _STOPWORDS = {
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "in",
+            "of",
+            "to",
+            "for",
+            "with",
+            "on",
+            "at",
+            "by",
+            "from",
+            "what",
+            "how",
+            "does",
+            "study",
+            "studies",
+            "analysis",
+            "using",
+            "used",
+            "based",
+            "data",
+        }
+        tokens = set(query.lower().split()) - _STOPWORDS
+        scored = []
+        for record in self._records:
+            text = f"{record.get('pmid', '')} {record.get('title', '')} {record.get('abstract', '')}".lower()
+            score = sum(1 for token in tokens if token in text)
+            if score > 0:
+                scored.append((score, record))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [r for _, r in scored[: self._top_k]]
 
-    def index(self):
-        pass
+    def build_context(self, results: list[dict]) -> str:
+        parts = []
+        for i, result in enumerate(results):
+            parts.append(
+                f"[{i}] {result['title']} ({result.get('year', '?')}, {result.get('journal', '?')})\n"
+                f"{result['abstract']}"
+            )
+        return "\n\n".join(parts)
 
-    def search(self):
-        pass
+    def build_prompt(self, question: str, context: str) -> str:
+        return PROMPT_TEMPLATE.format(question=question, context=context)
 
-    def call_llm(self, prompt):
-        input_messages = [
-            {"role": "developer", "content": self.instructions},
-            {"role": "user", "content": prompt}
-        ]
-        response = self.llm_client.responses.create(
-            model=self.model,
-            input=input_messages
+    def llm(self, prompt: str) -> LLMCallRecord:
+        t0 = time.perf_counter()
+        response = self._client.responses.create(
+            model="gpt-4o-mini",
+            instructions=INSTRUCTIONS,
+            input=prompt,
         )
-        return response
-
-    def log_response(self, prompt, response, response_time):
+        elapsed = time.perf_counter() - t0
         usage = response.usage
-        cost = calculate_cost(self.model, usage)
-
-        call_record = LLMCallRecord(
-            model=self.model,
+        return LLMCallRecord(
+            model=response.model,
             prompt=prompt,
-            instructions=self.instructions,
+            instructions=INSTRUCTIONS,
             answer=response.output_text,
             prompt_tokens=usage.input_tokens,
             completion_tokens=usage.output_tokens,
             total_tokens=usage.total_tokens,
-            response_time=response_time,
-            cost=cost,
+            response_time=round(elapsed, 3),
+            cost=self._calculate_cost(
+                response.model, usage.input_tokens, usage.output_tokens
+            ),
         )
 
-        self.last_call = call_record
+    def query(self, question: str) -> LLMCallRecord:
+        results = self.search(question)
+        if not results:
+            context = "(No relevant articles found.)"
+        else:
+            context = self.build_context(results)
+        prompt = self.build_prompt(question, context)
+        return self.llm(prompt)
