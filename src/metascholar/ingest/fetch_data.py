@@ -102,7 +102,7 @@ def write_jsonl(records: list[dict], path: Path) -> int:
 
 def main() -> None:
     """Search PubMed, fetch full records, and write them to corpus."""
-    pmids = search_pmids(SEARCH_QUERY, retmax=300)
+    pmids = search_pmids(SEARCH_QUERY, retmax=10_000)
     print(f"found {len(pmids)} PMIDs, fetching…")
     records = fetch_all(pmids)
     written = write_jsonl(records, settings.corpus_path)
