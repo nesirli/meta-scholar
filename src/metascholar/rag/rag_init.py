@@ -4,11 +4,14 @@ from pathlib import Path
 from openai import OpenAI
 
 from metascholar.rag.schemas import LLMCallRecord
+from metascholar.config import settings
 
 INSTRUCTIONS = (
     "You are a research assistant answering questions about metagenomics literature. "
     "Use only the provided context to answer. If the answer is not in the context, "
-    'say "I don\'t know."'
+    "say 'I don't know.' "
+    "Cite every statement with the source number from the context, e.g. [1] or [2]. "
+    "Example: 'Metagenomic binning uses CONCOCT and MetaBAT [1].'"
 )
 
 PROMPT_TEMPLATE = """QUESTION: {question}
@@ -52,32 +55,9 @@ class RAG:
     def search(self, query: str) -> list[dict]:
         """Score records by how many query tokens appear in title + abstract"""
         _STOPWORDS = {
-            "the",
-            "a",
-            "an",
-            "is",
-            "are",
-            "was",
-            "were",
-            "in",
-            "of",
-            "to",
-            "for",
-            "with",
-            "on",
-            "at",
-            "by",
-            "from",
-            "what",
-            "how",
-            "does",
-            "study",
-            "studies",
-            "analysis",
-            "using",
-            "used",
-            "based",
-            "data",
+            "the", "a", "an", "is", "are", "was", "were", "in", "of",
+            "to", "for", "with", "on", "at", "by", "from","what", "how",
+            "does", "study", "studies", "analysis", "using", "used", "based", "data",
         }
         tokens = set(query.lower().split()) - _STOPWORDS
         scored = []
@@ -91,9 +71,10 @@ class RAG:
 
     def build_context(self, results: list[dict]) -> str:
         parts = []
-        for i, result in enumerate(results):
+        for i, result in enumerate(results, 1):
             parts.append(
-                f"[{i}] {result['title']} ({result.get('year', '?')}, {result.get('journal', '?')})\n"
+                f"Source [{i}]: PMID {result['pmid']} — {result['title']} "
+                f"({result.get('year', '?')}, {result.get('journal', '?')})\n"
                 f"{result['abstract']}"
             )
         return "\n\n".join(parts)
@@ -131,4 +112,13 @@ class RAG:
         else:
             context = self.build_context(results)
         prompt = self.build_prompt(question, context)
-        return self.llm(prompt)
+        record = self.llm(prompt)
+        record.sources = results
+        return record
+
+
+def create_assistant() -> RAG:
+    client = OpenAI(api_key=settings.openai_api_key)
+    return RAG(client=client, corpus_path=settings.corpus_path)
+
+assistant = create_assistant()
