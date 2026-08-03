@@ -36,6 +36,11 @@ class RAG:
 
     @staticmethod
     def _load_corpus(path: Path) -> list[dict]:
+        if not path.exists():
+            # Corpus is fetched post-deploy via `make get_data`; until then the
+            # app should still start (keyword search just returns nothing).
+            print(f"corpus not found at {path}; run `make get_data` to fetch it")
+            return []
         records = []
         with path.open(encoding="utf8") as fp:
             for line in fp:

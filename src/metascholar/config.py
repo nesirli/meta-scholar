@@ -11,7 +11,10 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "MetaScholar"
-    corpus_path: Path = PROJECT_DIR / "data" / "corpus.jsonl"
+    # Relative to the working directory (repo root locally, /app in the container),
+    # so it resolves correctly whether the package is run from source or installed
+    # into site-packages. Override with CORPUS_PATH if needed.
+    corpus_path: Path = Path("data/corpus.jsonl")
 
     openai_api_key: str
     postgres_host: str
