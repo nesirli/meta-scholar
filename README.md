@@ -1,6 +1,6 @@
 # MetaScholar
 
-> RAG-based question answering over the metagenomics & microbiome literature — ask a question, get an answer grounded in PubMed abstracts, with citations.
+> RAG-based question answering over the metagenomics & microbiome literature. Ask a question, get an answer grounded in PubMed abstracts, with citations.
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)
@@ -9,14 +9,14 @@
 
 ## 🔗 Live demo
 
-**https://nasirnesirli.com/portfolio/metascholar**
+**https://nasirnesirli.com/portfolio/metascholar/app**
 
 | | |
 |---|---|
 | **Username** | `admin` |
 | **Password** | `password` |
 
-> A public demo with shared credentials — please don't rely on it for anything private.
+> A public demo with shared credentials, so please don't rely on it for anything private.
 
 ---
 
@@ -26,17 +26,17 @@ MetaScholar answers natural-language questions about metagenomics and microbiome
 
 1. **Retrieves** relevant PubMed abstracts from a local corpus (keyword + vector + hybrid search),
 2. **Grounds** an LLM's answer in that retrieved context, and
-3. **Returns** the answer with numbered source citations — so every claim is traceable back to a paper.
+3. **Returns** the answer with numbered source citations, so every claim is traceable back to a paper.
 
-Every answer is also scored by an **LLM-as-a-judge** for relevance, and users can thumbs-up/down. All of it — cost, latency, tokens, relevance, feedback — is tracked on a built-in **dashboard**.
+Every answer is also scored by an **LLM-as-a-judge** for relevance, and users can thumbs-up/down. Cost, latency, tokens, relevance, and feedback are all tracked on a built-in **dashboard**.
 
 ## Features
 
-- **Grounded answers with citations** — responses cite `[1]`, `[2]`… mapped to PMIDs, titles, journals, and years. If the context doesn't contain the answer, it says "I don't know" rather than hallucinating.
-- **Hybrid retrieval** — keyword search + pgvector semantic search, fused with Reciprocal Rank Fusion (RRF).
-- **Automatic evaluation** — each answer is judged for relevance at query time and stored.
-- **Dashboard** — total conversations, average latency, total cost, average tokens, cost/latency over time, relevance breakdown, and user-feedback stats.
-- **Chat history** — sidebar with clickable past conversations and a "New chat" button.
+- **Grounded answers with citations:** responses cite `[1]`, `[2]`… mapped to PMIDs, titles, journals, and years. If the context doesn't contain the answer, it says "I don't know" rather than hallucinating.
+- **Hybrid retrieval:** keyword search + pgvector semantic search, fused with Reciprocal Rank Fusion (RRF).
+- **Automatic evaluation:** each answer is judged for relevance at query time and stored.
+- **Dashboard:** total conversations, average latency, total cost, average tokens, cost/latency over time, relevance breakdown, and user-feedback stats.
+- **Chat history:** sidebar with clickable past conversations and a "New chat" button.
 
 ## How it works
 
@@ -54,7 +54,7 @@ Every answer is also scored by an **LLM-as-a-judge** for relevance, and users ca
 
 - **Corpus:** ~9,900 PubMed abstracts on metagenomics/microbiome, fetched via NCBI E-utilities and stored as `data/corpus.jsonl`.
 - **Embeddings:** OpenAI `text-embedding-3-small` (1536-dim), stored in Postgres with an HNSW index (`pgvector`).
-- **Retrieval:** keyword (token-overlap scoring), vector (cosine similarity), and hybrid (RRF, `k=60`) — hybrid is the default.
+- **Retrieval:** keyword (token-overlap scoring), vector (cosine similarity), and hybrid (RRF, `k=60`), with hybrid as the default.
 - **Generation & judging:** OpenAI `gpt-4o-mini`.
 
 ## Tech stack
@@ -112,7 +112,7 @@ make get_data     # fetch PubMed abstracts → data/corpus.jsonl
 make init         # create the schema, embed abstracts into Postgres
 ```
 
-`make init` embeds every abstract via the OpenAI API — it makes ~9,900 calls (cheap, but takes a few minutes). It's idempotent, so it's safe to re-run.
+`make init` embeds every abstract via the OpenAI API, so it makes ~9,900 calls (cheap, but takes a few minutes). It's idempotent, so it's safe to re-run.
 
 ### 4. Run the app
 
@@ -152,11 +152,11 @@ Across all queries:
   Total unique:      96
 ```
 
-The takeaway: keyword and vector search find **almost entirely different documents** (overlap ≈ 0). That's the whole argument for **hybrid search** — combining both via RRF surfaces papers neither method finds alone, which is why hybrid is the default retriever.
+The takeaway: keyword and vector search find **almost entirely different documents** (overlap ≈ 0). That's the whole argument for **hybrid search**: combining both via RRF surfaces papers neither method finds alone, which is why hybrid is the default retriever.
 
 ### 2. Prompt A/B test (LLM-as-a-judge)
 
-Two system-prompt variants — **Concise** vs. **Detailed** — are run over 5 queries. Each answer is graded by an LLM judge (`judge.py`) that classifies relevance as `RELEVANT` / `PARTLY_RELEVANT` / `NON_RELEVANT`, scored 2 / 1 / 0:
+Two system-prompt variants, **Concise** vs. **Detailed**, are run over 5 queries. Each answer is graded by an LLM judge (`judge.py`) that classifies relevance as `RELEVANT` / `PARTLY_RELEVANT` / `NON_RELEVANT`, scored 2 / 1 / 0:
 
 ```
 Results:
@@ -176,7 +176,7 @@ make test_rag     # run one query, print the cited answer + model, latency, toke
 
 ### Continuous, in-app evaluation
 
-The same judge runs **live**: every answer in the app is scored for relevance and stored, alongside user 👍/👎 feedback. The **Dashboard** tab aggregates relevance rates, user feedback, cost, latency, and token usage over time — so quality is monitored in production, not just offline.
+The same judge runs **live**: every answer in the app is scored for relevance and stored, alongside user 👍/👎 feedback. The **Dashboard** tab aggregates relevance rates, user feedback, cost, latency, and token usage over time, so quality is monitored in production, not just offline.
 
 ### Unit tests
 
@@ -196,12 +196,12 @@ uv run pytest     # corpus parsing + RAG retrieval/context/prompt tests
 
 ## Deployment
 
-Deployed on [Coolify](https://coolify.io) as a Docker Compose stack (Streamlit app + Postgres/pgvector) behind a Traefik reverse proxy at the `/portfolio/metascholar` subpath.
+Deployed on [Coolify](https://coolify.io) as a Docker Compose stack (Streamlit app + Postgres/pgvector) behind a Traefik reverse proxy at the `/portfolio/metascholar/app` subpath.
 
 Notes specific to running Streamlit at a subpath:
 
-- Set `ROOT_PATH=/portfolio/metascholar` so Streamlit serves under that prefix (`--server.baseUrlPath`) and generates correct asset/WebSocket URLs.
-- The reverse proxy must **not** strip the prefix (in Coolify, turn **off** "Strip Prefixes") — Streamlit needs the full path to reach `baseUrlPath`. See [coolify#2603](https://github.com/coollabsio/coolify/issues/2603).
+- Set `ROOT_PATH=/portfolio/metascholar/app` so Streamlit serves under that prefix (`--server.baseUrlPath`) and generates correct asset/WebSocket URLs.
+- The reverse proxy must **not** strip the prefix (in Coolify, turn **off** "Strip Prefixes"). Streamlit needs the full path to reach `baseUrlPath`. See [coolify#2603](https://github.com/coollabsio/coolify/issues/2603).
 - The corpus is gitignored, so after the first deploy run `make get_data` and `make init` inside the app container.
 
 ## Project structure
@@ -227,7 +227,7 @@ src/metascholar/
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
 ---
 
