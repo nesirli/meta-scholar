@@ -130,7 +130,7 @@ Retrieval quality and prompt choices are measured, not guessed. Run:
 make evaluate
 ```
 
-This runs two evaluations:
+This runs three evaluations and prints the estimated OpenAI cost at the end.
 
 ### 1. Retrieval comparison (keyword vs. vector)
 
@@ -152,9 +152,32 @@ Across all queries:
   Total unique:      96
 ```
 
-The takeaway: keyword and vector search find **almost entirely different documents** (overlap ≈ 0). That's the whole argument for **hybrid search**: combining both via RRF surfaces papers neither method finds alone, which is why hybrid is the default retriever.
+The takeaway: keyword and vector search find **almost entirely different documents** (overlap is close to 0). That is the main argument for **hybrid search**. Combining both methods via RRF surfaces papers that neither method finds alone. That is why hybrid is the default retriever.
 
-### 2. Prompt A/B test (LLM-as-a-judge)
+### 2. Search quality with Hit Rate and MRR
+
+The evaluation also scores keyword, vector, and hybrid search with two standard retrieval metrics from the course repo:
+
+- **Hit Rate**: the share of queries where the expected paper appears anywhere in the top-5 results.
+- **MRR (Mean Reciprocal Rank)**: how high up the expected paper appears. A hit at rank 1 scores 1.0, rank 2 scores 0.5, rank 5 scores 0.2.
+
+These metrics need a ground-truth file of `(question, pmid)` pairs. Generate it once from the corpus:
+
+```bash
+uv run python -m metascholar.rag.evaluate --generate-ground-truth
+```
+
+Then `make evaluate` will print a scorecard like this:
+
+```
+Method        Hit Rate        MRR
+--------------------------------
+keyword        0.350        0.280
+vector         0.420        0.310
+hybrid         0.550        0.460
+```
+
+### 3. Prompt A/B test (LLM-as-a-judge)
 
 Two system-prompt variants, **Concise** vs. **Detailed**, are run over 5 queries. Each answer is graded by an LLM judge (`judge.py`) that classifies relevance as `RELEVANT` / `PARTLY_RELEVANT` / `NON_RELEVANT`, scored 2 / 1 / 0:
 
@@ -164,9 +187,10 @@ Results:
   Detailed: 10/10 (100%)
 
 Winner: Concise
+Estimated generation cost: $0.0032
 ```
 
-The judge returns a structured verdict (`relevance` + `explanation`) via OpenAI structured outputs, so scoring is consistent and parseable.
+The judge returns a structured verdict (`relevance` + `explanation`) via OpenAI structured outputs, so scoring is consistent and parseable. It also retries automatically on transient failures, so the evaluation is more reliable.
 
 ### One-off end-to-end check
 
@@ -192,7 +216,8 @@ uv run pytest     # corpus parsing + RAG retrieval/context/prompt tests
 | `make init` | Create the DB schema and embed the corpus into Postgres |
 | `make run_app` | Launch the Streamlit app |
 | `make test_rag` | Run one end-to-end query and print the cited answer |
-| `make evaluate` | Retrieval comparison + prompt A/B evaluation |
+| `make evaluate` | Retrieval comparison + prompt A/B evaluation + Hit Rate/MRR if ground truth exists |
+| `uv run python -m metascholar.rag.evaluate --generate-ground-truth` | Build a `(question, pmid)` ground-truth file from the corpus |
 
 ## Deployment
 

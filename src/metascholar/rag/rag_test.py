@@ -9,5 +9,5 @@ if __name__ == "__main__":
     result = assistant.query(query)
     print(result.answer)
     print(
-        f"\n— {result.model} | {result.response_time}s | {result.total_tokens} tokens"
+        f"\n- {result.model} | {result.response_time}s | {result.total_tokens} tokens"
     )

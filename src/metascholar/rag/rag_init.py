@@ -102,7 +102,7 @@ class RAG:
         parts = []
         for i, result in enumerate(results, 1):
             parts.append(
-                f"Source [{i}]: PMID {result['pmid']} — {result['title']} "
+                f"Source [{i}]: PMID {result['pmid']} - {result['title']} "
                 f"({result.get('year', '?')}, {result.get('journal', '?')})\n"
                 f"{result['abstract']}"
             )

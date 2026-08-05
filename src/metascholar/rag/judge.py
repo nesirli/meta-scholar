@@ -1,9 +1,12 @@
+import time
+
 from pydantic import BaseModel
 from typing import Literal
 from openai import OpenAI
 
 from metascholar.config import settings
 from metascholar.rag.rag_init import assistant
+
 
 class RelevanceVerdict(BaseModel):
     relevance: Literal["NON_RELEVANT", "PARTLY_RELEVANT", "RELEVANT"]
@@ -22,21 +25,35 @@ JUDGE_PROMPT = """Question: {question}
 Generated Answer: {answer}"""
 
 
-def evaluate_relevance(question: str, answer: str, client: OpenAI | None = None) -> tuple[str, str]:
+def evaluate_relevance(
+    question: str,
+    answer: str,
+    client: OpenAI | None = None,
+    max_retries: int = 3,
+) -> tuple[str, str]:
+    """Score answer relevance with an LLM judge, retrying on transient failures."""
     if client is None:
         client = OpenAI(api_key=settings.openai_api_key)
 
-    response = client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": JUDGE_INSTRUCTIONS},
-            {"role": "user", "content": JUDGE_PROMPT.format(question=question, answer=answer)},
-        ],
-        response_format=RelevanceVerdict,
-    )
+    prompt = JUDGE_PROMPT.format(question=question, answer=answer)
+    messages = [
+        {"role": "system", "content": JUDGE_INSTRUCTIONS},
+        {"role": "user", "content": prompt},
+    ]
 
-    result = response.choices[0].message.parsed
-    return result.relevance, result.explanation
+    for attempt in range(max_retries):
+        try:
+            response = client.beta.chat.completions.parse(
+                model="gpt-4o-mini",
+                messages=messages,
+                response_format=RelevanceVerdict,
+            )
+            result = response.choices[0].message.parsed
+            return result.relevance, result.explanation
+        except Exception:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2 ** attempt)
 
 
 if __name__ == "__main__":

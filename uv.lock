@@ -471,6 +471,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pytest" },
     { name = "streamlit" },
+    { name = "tqdm" },
 ]
 
 [package.metadata]
@@ -481,6 +482,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "streamlit", specifier = ">=1.60.0" },
+    { name = "tqdm", specifier = ">=4.68.1" },
 ]
 
 [[package]]
